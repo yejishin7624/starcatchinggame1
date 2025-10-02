@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>별똥별 잡기 게임</title>
+    <style>
+        /* 도트 스타일을 위한 기본 설정 */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        /* 외부 폰트 대신 시스템 폰트를 사용하여 라이브러리 미사용 조건 준수 */
+        body {
+            font-family: 'monospace', sans-serif;
+            background-color: #000033; /* 짙은 밤하늘 */
+            color: #FFFF99; /* 밝은 텍스트 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+            overflow: hidden; /* 별이 화면 밖으로 나갈 때 스크롤 방지 */
+            -webkit-font-smoothing: none;
+            text-rendering: optimizeSpeed;
+        }
+
+        #game-container {
+            width: 90vw;
+            max-width: 500px;
+            height: 70vh;
+            background: linear-gradient(180deg, #1A0033 0%, #00001A 100%); /* 밤하늘 그라데이션 */
+            border: 4px solid #FFFF99;
+            box-shadow: 0 0 0 4px #000;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            image-rendering: pixelated; /* 도트 스타일 적용 */
+        }
+
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 90vw;
+            max-width: 500px;
+            padding: 10px 0;
+            font-size: 1rem;
+            text-shadow: 2px 2px #000;
+        }
+
+        #start-button {
+            padding: 10px 20px;
+            background-color: #CC0000;
+            color: #FFFF99;
+            border: 4px solid #FFFF99;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-top: 20px;
+            box-shadow: 4px 4px 0px #880000;
+            transition: all 0.05s ease;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #start-button:hover {
+            background-color: #FF3333;
+        }
+        
+        #start-button:active {
+            box-shadow: 2px 2px 0px #880000;
+            transform: translate(2px, 2px);
+        }
+
+        /* 별똥별 스타일 - 작은 도트 모양 */
+        .star {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #FFFF00; /* 밝은 노랑 */
+            box-shadow: 0 0 5px #FFCC00, 0 0 10px #FF6600; /* 빛나는 효과 */
+            cursor: pointer;
+            z-index: 10;
+            border-radius: 2px; /* 살짝 둥근 사각형 */
+        }
+
+        .star:before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background-color: #FFF;
+            transform: translate(-50%, -50%);
+            border-radius: 1px;
+        }
+
+        /* 메시지 박스 스타일 */
+        #message-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #000033;
+            border: 4px solid #FFFF99;
+            border-radius: 4px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 100;
+            pointer-events: none; /* 클릭 이벤트 방지 */
+            min-width: 200px;
+            box-shadow: 4px 4px 0px #000000;
+            image-rendering: pixelated;
+        }
+
+        .show-message {
+            opacity: 1 !important;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #FFFF99;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            text-shadow: 4px 4px #CC0000;
+            z-index: 50;
+            display: none;
+            image-rendering: pixelated;
+        }
+
+        .game-over-screen p {
+            font-size: 1.2rem;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-bar">
+        <div id="score-display">점수: 0</div>
+        <div id="timer-display">시간: 20s</div>
+    </div>
+
+    <div id="game-container">
+        <!-- 별똥별이 여기에 생성됩니다 -->
+        <div id="message-overlay">Make a wish!</div>
+
+        <div class="game-over-screen" id="game-over-screen">
+            게임 종료!
+            <p id="final-score-text">최종 점수: 0점</p>
+            <button id="restart-button">다시 시작</button>
+        </div>
+    </div>
+
+    <button id="start-button">게임 시작</button>
+
+    <script>
+        // 전역 변수 설정
+        const GAME_DURATION = 20; // 제한 시간 20초
+        const STAR_SPAWN_INTERVAL = 800; // 별 생성 간격 (ms)
+        const STAR_FALL_SPEED = 2; // 별의 기본 낙하 속도 (픽셀/프레임)
+
+        let score = 0;
+        let timeLeft = GAME_DURATION;
+        let isGameRunning = false;
+        let starSpawnTimer;
+        let gameTimer;
+        let activeStars = {}; // 별의 Interval ID를 저장할 객체
+
+        // DOM 요소
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const startButton = document.getElementById('start-button');
+        const messageOverlay = document.getElementById('message-overlay');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreText = document.getElementById('final-score-text');
+        const restartButton = document.getElementById('restart-button');
+
+        // ==========================================================
+        // 초기화 및 게임 상태 관리
+        // ==========================================================
+
+        /**
+         * 게임을 초기화하고 시작합니다.
+         */
+        function startGame() {
+            if (isGameRunning) return;
+            
+            score = 0;
+            timeLeft = GAME_DURATION;
+            isGameRunning = true;
+            scoreDisplay.textContent = `점수: ${score}`;
+            timerDisplay.textContent = `시간: ${timeLeft}s`;
+
+            // 모든 기존 별 제거 및 인터벌 정리
+            gameContainer.querySelectorAll('.star').forEach(star => star.remove());
+            clearIntervals();
+            
+            gameOverScreen.style.display = 'none';
+            startButton.style.display = 'none';
+            restartButton.style.display = 'none';
+
+            // 게임 타이머 시작
+            gameTimer = setInterval(updateTimer, 1000);
+
+            // 별 생성 타이머 시작
+            starSpawnTimer = setInterval(spawnStar, STAR_SPAWN_INTERVAL);
+        }
+        
+        /**
+         * 게임 타이머를 업데이트하고 시간이 0이 되면 게임을 종료합니다.
+         */
+        function updateTimer() {
+            timeLeft--;
+            timerDisplay.textContent = `시간: ${timeLeft}s`;
+
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        /**
+         * 게임을 종료하고 최종 점수를 표시합니다.
+         */
+        function endGame() {
+            isGameRunning = false;
+            clearIntervals();
+
+            // 최종 화면 표시
+            finalScoreText.textContent = `최종 점수: ${score}점`;
+            gameOverScreen.style.display = 'flex';
+            restartButton.style.display = 'block';
+        }
+
+        /**
+         * 모든 setInterval을 정리합니다.
+         */
+        function clearIntervals() {
+            clearInterval(gameTimer);
+            clearInterval(starSpawnTimer);
+            for (const starId in activeStars) {
+                clearInterval(activeStars[starId].intervalId);
+            }
+            activeStars = {}; // 활성 별 목록 초기화
+        }
+
+        // ==========================================================
+        // 별똥별 생성 및 이동
+        // ==========================================================
+
+        /**
+         * 새로운 별똥별 요소를 생성하고 게임 컨테이너에 추가합니다.
+         */
+        function spawnStar() {
+            const star = document.createElement('div');
+            star.className = 'star';
+
+            // 별 고유 ID 생성 (인터벌 관리를 위해)
+            const starId = Date.now() + Math.random();
+            star.setAttribute('data-id', starId);
+
+            // 랜덤 x 위치 설정 (컨테이너 폭의 5% ~ 95% 사이)
+            const gameWidth = gameContainer.clientWidth;
+            const randomX = Math.random() * (gameWidth * 0.9) + (gameWidth * 0.05);
+            star.style.left = `${randomX}px`;
+            star.style.top = '0px';
+
+            star.addEventListener('click', handleStarClick);
+            gameContainer.appendChild(star);
+
+            // 별 이동 시작
+            const fallIntervalId = setInterval(() => moveStar(star, starId), 50);
+
+            // 활성 별 목록에 추가
+            activeStars[starId] = { element: star, intervalId: fallIntervalId };
+        }
+
+        /**
+         * 별을 아래로 이동시키고, 화면 밖으로 나가면 제거합니다.
+         * @param {HTMLElement} star - 이동시킬 별 요소
+         * @param {string} starId - 별의 고유 ID
+         */
+        function moveStar(star, starId) {
+            if (!isGameRunning) {
+                // 게임이 종료되었으면 이동 중지
+                clearInterval(activeStars[starId]?.intervalId);
+                delete activeStars[starId];
+                star.remove();
+                return;
+            }
+
+            const currentTop = parseInt(star.style.top) || 0;
+            const containerHeight = gameContainer.clientHeight;
+            
+            // 별의 낙하 속도에 약간의 랜덤성을 추가
+            const speed = STAR_FALL_SPEED + Math.random() * 1.5; 
+            star.style.top = `${currentTop + speed}px`;
+
+            // 화면 밖으로 나갔는지 확인 (별의 크기 10px 고려)
+            if (currentTop > containerHeight + 10) {
+                // 잡지 못한 별은 제거
+                cleanupStar(star, starId);
+            }
+        }
+
+        /**
+         * 별을 DOM에서 제거하고 인터벌을 정리합니다.
+         * @param {HTMLElement} star - 제거할 별 요소
+         * @param {string} starId - 별의 고유 ID
+         */
+        function cleanupStar(star, starId) {
+            clearInterval(activeStars[starId]?.intervalId);
+            star.removeEventListener('click', handleStarClick);
+            delete activeStars[starId];
+            star.remove();
+        }
+
+
+        // ==========================================================
+        // 이벤트 핸들러
+        // ==========================================================
+
+        /**
+         * 별을 클릭했을 때 점수 증가 및 메시지를 표시합니다.
+         * @param {Event} event - 클릭 이벤트 객체
+         */
+        function handleStarClick(event) {
+            if (!isGameRunning) return;
+
+            const star = event.currentTarget;
+            const starId = star.getAttribute('data-id');
+
+            // 1. 점수 증가
+            score++;
+            scoreDisplay.textContent = `점수: ${score}`;
+
+            // 2. 별 제거 및 정리
+            cleanupStar(star, starId);
+
+            // 3. "Make a wish!" 메시지 표시
+            showMessage('Make a wish!');
+        }
+
+        /**
+         * 화면에 메시지를 잠깐 표시하고 사라지게 합니다.
+         * @param {string} text - 표시할 텍스트
+         */
+        function showMessage(text) {
+            messageOverlay.textContent = text;
+            messageOverlay.classList.add('show-message');
+
+            // 0.8초 후 메시지를 숨깁니다.
+            setTimeout(() => {
+                messageOverlay.classList.remove('show-message');
+            }, 800);
+        }
+
+        // ==========================================================
+        // 이벤트 리스너 등록
+        // ==========================================================
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // 페이지 로드 시 시작 버튼만 보이도록 초기 설정
+        window.onload = () => {
+             gameOverScreen.style.display = 'none';
+             restartButton.style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>
