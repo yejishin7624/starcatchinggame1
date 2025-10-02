@@ -6,9 +6,6 @@
     <title>별똥별 잡기 게임</title>
     <style>
         /* 도트 스타일을 위한 기본 설정 */
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        
-        /* 외부 폰트 대신 시스템 폰트를 사용하여 라이브러리 미사용 조건 준수 */
         body {
             font-family: 'monospace', sans-serif;
             background-color: #000033; /* 짙은 밤하늘 */
@@ -19,10 +16,44 @@
             height: 100vh;
             margin: 0;
             flex-direction: column;
-            overflow: hidden; /* 별이 화면 밖으로 나갈 때 스크롤 방지 */
+            overflow: hidden; 
             -webkit-font-smoothing: none;
             text-rendering: optimizeSpeed;
         }
+
+        /* 난이도 및 정보 표시줄 통합 스타일 */
+        .control-bar {
+            width: 90vw;
+            max-width: 500px;
+            padding: 10px 0;
+            font-size: 1rem;
+            text-shadow: 2px 2px #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .difficulty-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #difficulty-select {
+            background-color: #1A0033;
+            color: #FFFF99;
+            border: 2px solid #FFFF99;
+            padding: 4px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'monospace', sans-serif;
+            appearance: none; /* 기본 드롭다운 스타일 제거 */
+        }
+        
+        #difficulty-select:focus {
+            outline: 2px solid #FF3333;
+        }
+
 
         #game-container {
             width: 90vw;
@@ -34,21 +65,10 @@
             position: relative;
             overflow: hidden;
             border-radius: 8px;
-            image-rendering: pixelated; /* 도트 스타일 적용 */
+            image-rendering: pixelated; 
         }
 
-        .info-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 90vw;
-            max-width: 500px;
-            padding: 10px 0;
-            font-size: 1rem;
-            text-shadow: 2px 2px #000;
-        }
-
-        #start-button {
+        #start-button, #restart-button {
             padding: 10px 20px;
             background-color: #CC0000;
             color: #FFFF99;
@@ -63,37 +83,32 @@
             user-select: none;
         }
 
-        #start-button:hover {
+        #start-button:hover, #restart-button:hover {
             background-color: #FF3333;
         }
         
-        #start-button:active {
+        #start-button:active, #restart-button:active {
             box-shadow: 2px 2px 0px #880000;
             transform: translate(2px, 2px);
         }
 
-        /* 별똥별 스타일 - 작은 도트 모양 */
+        /* 별똥별 스타일 - CSS clip-path를 사용한 5각 별 모양 */
         .star {
             position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: #FFFF00; /* 밝은 노랑 */
-            box-shadow: 0 0 5px #FFCC00, 0 0 10px #FF6600; /* 빛나는 효과 */
+            width: 15px; /* 별 크기 */
+            height: 15px;
+            background-color: #FFCC00; /* 밝은 노랑 */
+            /* 5-꼭지 별 모양 생성 */
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            box-shadow: 0 0 10px 2px rgba(255, 255, 100, 0.9); /* 빛나는 효과 */
             cursor: pointer;
             z-index: 10;
-            border-radius: 2px; /* 살짝 둥근 사각형 */
+            transition: transform 0.05s;
         }
 
-        .star:before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 5px;
-            height: 5px;
-            background-color: #FFF;
-            transform: translate(-50%, -50%);
-            border-radius: 1px;
+        /* 클릭 시 약간의 반응 효과 */
+        .star:active {
+            transform: scale(0.9);
         }
 
         /* 메시지 박스 스타일 */
@@ -113,7 +128,7 @@
             opacity: 0;
             transition: opacity 0.2s, transform 0.2s;
             z-index: 100;
-            pointer-events: none; /* 클릭 이벤트 방지 */
+            pointer-events: none; 
             min-width: 200px;
             box-shadow: 4px 4px 0px #000000;
             image-rendering: pixelated;
@@ -150,10 +165,21 @@
     </style>
 </head>
 <body>
-
-    <div class="info-bar">
-        <div id="score-display">점수: 0</div>
+    
+    <div class="control-bar">
+        <div class="difficulty-group">
+            난이도: 
+            <select id="difficulty-select">
+                <option value="easy">쉬움</option>
+                <option value="medium" selected>보통</option>
+                <option value="hard">어려움</option>
+            </select>
+        </div>
         <div id="timer-display">시간: 20s</div>
+    </div>
+
+    <div class="control-bar" style="justify-content: flex-start; padding-top: 0;">
+        <div id="score-display">점수: 0</div>
     </div>
 
     <div id="game-container">
@@ -170,10 +196,13 @@
     <button id="start-button">게임 시작</button>
 
     <script>
-        // 전역 변수 설정
+        // 난이도 설정: 속도(speed)와 생성 간격(interval, ms)을 조정합니다.
+        const DIFFICULTIES = {
+            easy: { speed: 1.5, interval: 1000 }, 
+            medium: { speed: 2.5, interval: 700 },
+            hard: { speed: 3.5, interval: 500 }
+        };
         const GAME_DURATION = 20; // 제한 시간 20초
-        const STAR_SPAWN_INTERVAL = 800; // 별 생성 간격 (ms)
-        const STAR_FALL_SPEED = 2; // 별의 기본 낙하 속도 (픽셀/프레임)
 
         let score = 0;
         let timeLeft = GAME_DURATION;
@@ -181,6 +210,11 @@
         let starSpawnTimer;
         let gameTimer;
         let activeStars = {}; // 별의 Interval ID를 저장할 객체
+
+        // 난이도에 따라 동적으로 설정될 변수
+        let starFallSpeed = DIFFICULTIES.medium.speed;
+        let starSpawnInterval = DIFFICULTIES.medium.interval;
+
 
         // DOM 요소
         const gameContainer = document.getElementById('game-container');
@@ -191,6 +225,8 @@
         const gameOverScreen = document.getElementById('game-over-screen');
         const finalScoreText = document.getElementById('final-score-text');
         const restartButton = document.getElementById('restart-button');
+        const difficultySelect = document.getElementById('difficulty-select');
+
 
         // ==========================================================
         // 초기화 및 게임 상태 관리
@@ -202,6 +238,11 @@
         function startGame() {
             if (isGameRunning) return;
             
+            // 1. 난이도 설정 적용
+            const difficulty = difficultySelect.value;
+            starFallSpeed = DIFFICULTIES[difficulty].speed;
+            starSpawnInterval = DIFFICULTIES[difficulty].interval;
+
             score = 0;
             timeLeft = GAME_DURATION;
             isGameRunning = true;
@@ -215,12 +256,13 @@
             gameOverScreen.style.display = 'none';
             startButton.style.display = 'none';
             restartButton.style.display = 'none';
+            difficultySelect.disabled = true; // 게임 중 난이도 변경 방지
 
             // 게임 타이머 시작
             gameTimer = setInterval(updateTimer, 1000);
 
-            // 별 생성 타이머 시작
-            starSpawnTimer = setInterval(spawnStar, STAR_SPAWN_INTERVAL);
+            // 별 생성 타이머 시작 (난이도에 따라 간격 설정)
+            starSpawnTimer = setInterval(spawnStar, starSpawnInterval);
         }
         
         /**
@@ -246,6 +288,7 @@
             finalScoreText.textContent = `최종 점수: ${score}점`;
             gameOverScreen.style.display = 'flex';
             restartButton.style.display = 'block';
+            difficultySelect.disabled = false; // 게임 종료 후 난이도 변경 허용
         }
 
         /**
@@ -275,16 +318,17 @@
             const starId = Date.now() + Math.random();
             star.setAttribute('data-id', starId);
 
-            // 랜덤 x 위치 설정 (컨테이너 폭의 5% ~ 95% 사이)
             const gameWidth = gameContainer.clientWidth;
-            const randomX = Math.random() * (gameWidth * 0.9) + (gameWidth * 0.05);
+            const starSize = 15; // 별 크기
+            // 별이 화면 밖으로 튀어나가지 않도록 최소/최대 위치 조정
+            const randomX = Math.random() * (gameWidth - starSize * 2) + starSize;
             star.style.left = `${randomX}px`;
             star.style.top = '0px';
 
             star.addEventListener('click', handleStarClick);
             gameContainer.appendChild(star);
 
-            // 별 이동 시작
+            // 별 이동 시작 (50ms 마다 위치 업데이트)
             const fallIntervalId = setInterval(() => moveStar(star, starId), 50);
 
             // 활성 별 목록에 추가
@@ -297,23 +341,22 @@
          * @param {string} starId - 별의 고유 ID
          */
         function moveStar(star, starId) {
-            if (!isGameRunning) {
-                // 게임이 종료되었으면 이동 중지
-                clearInterval(activeStars[starId]?.intervalId);
-                delete activeStars[starId];
-                star.remove();
+            // 게임이 종료되었거나 별이 activeStars에 없으면 중지 및 정리
+            if (!isGameRunning || !activeStars[starId]) {
+                cleanupStar(star, starId);
                 return;
             }
 
-            const currentTop = parseInt(star.style.top) || 0;
+            const currentTop = parseFloat(star.style.top) || 0;
             const containerHeight = gameContainer.clientHeight;
             
-            // 별의 낙하 속도에 약간의 랜덤성을 추가
-            const speed = STAR_FALL_SPEED + Math.random() * 1.5; 
-            star.style.top = `${currentTop + speed}px`;
+            // 난이도에 설정된 속도와 약간의 랜덤 속도를 더함
+            const speed = starFallSpeed + Math.random() * 0.5; 
+            const newTop = currentTop + speed;
+            star.style.top = `${newTop}px`;
 
-            // 화면 밖으로 나갔는지 확인 (별의 크기 10px 고려)
-            if (currentTop > containerHeight + 10) {
+            // 화면 밖으로 나갔는지 확인 (별의 크기 15px 고려)
+            if (newTop > containerHeight + 15) {
                 // 잡지 못한 별은 제거
                 cleanupStar(star, starId);
             }
@@ -328,7 +371,10 @@
             clearInterval(activeStars[starId]?.intervalId);
             star.removeEventListener('click', handleStarClick);
             delete activeStars[starId];
-            star.remove();
+            // DOM에서 제거
+            if (star.parentNode) {
+                star.parentNode.removeChild(star);
+            }
         }
 
 
@@ -381,6 +427,10 @@
         window.onload = () => {
              gameOverScreen.style.display = 'none';
              restartButton.style.display = 'none';
+             // 난이도 초기 설정값 적용
+             const initialDifficulty = difficultySelect.value;
+             starFallSpeed = DIFFICULTIES[initialDifficulty].speed;
+             starSpawnInterval = DIFFICULTIES[initialDifficulty].interval;
         }
     </script>
 
